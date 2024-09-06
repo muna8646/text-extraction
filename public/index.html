@@ -1,0 +1,191 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Text Extraction and Overlay</title>
+    <style>
+        #progressContainer {
+            width: 100%;
+            background-color: #f3f3f3;
+            border-radius: 25px;
+            margin: 20px 0;
+            display: none;
+        }
+
+        #progressBar {
+            width: 0%;
+            height: 30px;
+            background-color: #4caf50;
+            text-align: center;
+            line-height: 30px;
+            color: white;
+            border-radius: 25px;
+        }
+
+        textarea {
+            width: 100%;
+        }
+
+        .image-container {
+            display: flex;
+            justify-content: space-between;
+            margin-top: 20px;
+        }
+
+        img {
+            max-width: 45%;
+        }
+
+        .loading-spinner {
+            border: 8px solid #f3f3f3;
+            border-top: 8px solid #3498db;
+            border-radius: 50%;
+            width: 50px;
+            height: 50px;
+            animation: spin 1s linear infinite;
+            display: none;
+        }
+
+        @keyframes spin {
+            0% { transform: rotate(0deg); }
+            100% { transform: rotate(360deg); }
+        }
+
+        #loadingMessage {
+            display: none;
+        }
+    </style>
+</head>
+<body>
+    <h1>Upload an Image</h1>
+    <form id="uploadForm">
+        <input type="file" id="imageInput" name="file" accept="image/*" required>
+        <button type="submit">Upload and Extract Text</button>
+    </form>
+
+    <div id="progressContainer">
+        <div id="progressBar">0%</div>
+    </div>
+
+    <div id="result" style="display:none;">
+        <h2>Extracted Text</h2>
+        <textarea id="extractedText" rows="10" cols="50"></textarea>
+        <button id="overlayButton">Update and Overlay Text</button>
+    </div>
+
+    <div class="image-container" style="display: none;" id="imageComparison">
+        <div>
+            <h2>Original Image:</h2>
+            <img id="uploadedImage" src="" alt="Uploaded Image">
+        </div>
+        <div>
+            <h2>Edited Image:</h2>
+            <div id="loadingMessage">
+                <div class="loading-spinner"></div>
+                <p>Processing...</p>
+            </div>
+            <img id="editedImage" src="" alt="Edited Image" style="display: none;">
+        </div>
+    </div>
+
+    <script>
+        const uploadForm = document.getElementById('uploadForm');
+        const extractedTextArea = document.getElementById('extractedText');
+        const resultDiv = document.getElementById('result');
+        const progressBar = document.getElementById('progressBar');
+        const progressContainer = document.getElementById('progressContainer');
+        const uploadedImage = document.getElementById('uploadedImage');
+        const editedImage = document.getElementById('editedImage');
+        const imageComparisonDiv = document.getElementById('imageComparison');
+        const loadingMessage = document.getElementById('loadingMessage');
+
+        // Function to update the progress bar
+        function updateProgressBar(progress) {
+            progressBar.style.width = `${progress}%`;
+            progressBar.textContent = `${progress}%`;
+        }
+
+        // Simulate progress bar progress for text extraction
+        function simulateProgress(duration) {
+            progressContainer.style.display = 'block';
+            let progress = 0;
+            const interval = setInterval(() => {
+                if (progress >= 100) {
+                    clearInterval(interval);
+                } else {
+                    progress += 1;
+                    updateProgressBar(progress);
+                }
+            }, duration / 100);
+        }
+
+        uploadForm.addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const formData = new FormData(uploadForm);
+
+            // Start the progress simulation for extraction (5 seconds simulation)
+            simulateProgress(5000);
+
+            const startTime = Date.now();
+            try {
+                const response = await fetch('/upload', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                const data = await response.json();
+                const endTime = Date.now();
+
+                // Once the text is extracted, hide the progress bar and display the result
+                progressContainer.style.display = 'none';
+
+                if (data.text) {
+                    const extractionTime = (endTime - startTime) / 1000; // Calculate extraction time in seconds
+                    extractedTextArea.value = data.text;
+                    resultDiv.style.display = 'block';
+
+                    // Display the original uploaded image for comparison
+                    uploadedImage.src = data.imageUrl;
+                    imageComparisonDiv.style.display = 'flex'; // Show the comparison container
+
+                    console.log(`Text extracted in ${extractionTime} seconds`);
+                }
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('result').innerText = 'An error occurred while uploading the file.';
+            }
+        });
+
+        // When the overlay button is clicked, send the updated text to overlay on the image
+        document.getElementById('overlayButton').addEventListener('click', async () => {
+            const text = extractedTextArea.value;
+            const formData = new FormData();
+            formData.append('file', document.getElementById('imageInput').files[0]);
+            formData.append('text', text);
+
+            // Show loading spinner and hide edited image during processing
+            editedImage.style.display = 'none';
+            loadingMessage.style.display = 'block';
+
+            try {
+                const response = await fetch('/update-text', {
+                    method: 'POST',
+                    body: formData,
+                });
+
+                const blob = await response.blob();
+                const editedImageUrl = URL.createObjectURL(blob);
+
+                // Hide loading spinner and display the edited image
+                loadingMessage.style.display = 'none';
+                editedImage.src = editedImageUrl;
+                editedImage.style.display = 'block';
+            } catch (error) {
+                console.error('Error:', error);
+                document.getElementById('result').innerText = 'An error occurred while overlaying the text on the image.';
+            }
+        });
+    </script>
+</body>
+</html>
